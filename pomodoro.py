@@ -17,60 +17,69 @@
 # 
 # If you need to kill it, open up another terminal and kill the process (but 
 # resist the temptation!). 
+#
+#
+#  let's try to package this in stackoverflow.com/questions/728589/example-of-how-to-use-msilib-to-create-a-msi-file-from-a-python-module http://docs.python.org/2/library/msilib.html for windows after gui TODO
+#
+
 
 import pynotify
-import os
-import time
+import os, time, socket
+from inet_drivers import (
+        get_ifaces, 
+        is_iface_on, 
+        turn_on_iface, 
+        turn_off_iface
+        )
 
-# Notifications
+# notifications  TODO these would be great in gui
 pynotify.init("pomodoro.py")
 work = pynotify.Notification("Here we go!","Time to get to work!")
 work.set_timeout(3)
 rest = pynotify.Notification("Break!","Good job! You earned a break!")
 rest.set_timeout(3)
 
-# Timings
-sec_to_run = 3*60*60 # 3 hour total runtime
-work_time = 10*60 # 10 minutes of work time
-rest_time = 2*60 # 2 minutes of break time
+# timings  TODO want these in gui too could be fun!
+SEC_TO_RUN = 3*60*60 # 3 hour total runtime
+WORK_TIME = 10*60 # 10 minutes of work time
+REST_TIME = 2*60 # 2 minutes of break time
+END_TIME = int(time.time()) + SEC_TO_RUN
 
-# Other settings
-disable_network = True # Set to false if the internet isn't a distraction to you (?!)
-disable_interrupts = True # Makes it a little harder to kill (but not much)
+disable_network = True
+disable_interrupts = True  # cannot kill on ^C
 
 # modify the interfaces list to match your particular system...
-def turn_off_internet():
-	interfaces = ["eth0","wlan0"]
-	for interface in interfaces:
-		os.system("ifconfig " + interface + " down")
+def turn_off_internet(socket_file, interfaces):
+    for interface in interfaces:
+        turn_off_iface(socket_file, interface)
 
-def turn_on_internet():
-	interfaces = ["eth0","wlan0"]
+def turn_on_internet(socket_file, interfaces):
 	for interface in interfaces:
-		os.system("ifconfig " + interface + " up")
+        turn_on_iface(socket_file, interface)
 
-end_time = int(time.time()) + sec_to_run
+
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+sfd = s.fileno()
+ifaces = filter(lambda x: re.match('^eth|wlan',x), 
+        get_ifaces(sfd))
 
 # Main loop
-while int(time.time()) < end_time:
+while int(time.time()) < END_TIME:
 	try:
 		# work for a bit
 		work_start = int(time.time())
 		work.show()
-		while int(time.time()) < (work_start + work_time):
+		while int(time.time()) < (work_start + WORK_TIME):
 			if disable_network:
-				# disable the network adapters!
-				turn_off_internet()
-
+				turn_off_internet(sfd, ifaces)
 			time.sleep(10)
 
 		# now rest
 		rest.show()
 		if disable_network:
-			# re-enable the network adapters
-			turn_on_internet()
+			turn_on_internet(sfd, ifaces)
 
-		time.sleep(rest_time)
+		time.sleep(REST_TIME)
 
 	except:
 		if disable_interrupts:
